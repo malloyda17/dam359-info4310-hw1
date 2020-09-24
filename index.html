@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script>
+
+  <title>Destiny_Malloy_dam359_HW1</title>
+  <style>
+    body {
+      font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+    }
+
+    path {
+      fill: white;
+      stroke: lightgray;
+      stroke-width: 1px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Destiny Malloy dam359</h1>
+  <h2>INFO 4310 HW1</h2>
+
+  <svg id='map' width='700' height='700'></svg>
+  <svg id='map2' width='700' height='700'></svg>
+
+  <script>
+    const map_svg = d3.select("#map");
+    const width2 = map_svg.attr("width");
+    const height2 = map_svg.attr("height");
+    const margin2 = { top: 50, right: 20, bottom: 30, left: 20 };
+    const mapWidth2 = width2 - margin2.left - margin2.right;
+    const mapHeight2 = height2 - margin2.top - margin2.bottom;
+    const map = map_svg.append("g")
+      .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+    const map_svg2 = d3.select("#map2");
+    const map2 = map_svg2.append("g")
+      .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+
+
+    const requestData = async function () {
+
+      const sf = await d3.json("SF-Neighborhoods.json");
+      console.log(sf)
+
+      var neighborhoods = topojson.feature(sf, sf.objects['SFNeighborhoods']);
+      var projection = d3.geoMercator().fitSize([mapWidth2, mapHeight2], neighborhoods);
+      var path = d3.geoPath().projection(projection);
+
+      map.selectAll("path.neighborhood").data(neighborhoods.features)
+        .join("path")
+        .attr("class", "block")
+        .attr("d", path);
+
+      map2.selectAll("path.neighborhood").data(neighborhoods.features)
+        .join("path")
+        .attr("class", "block")
+        .attr("d", path);
+
+      let trees = await d3.csv("Street_Tree_List-2020-08-20_FILTERED.csv");
+
+      trees = trees.filter((d) => {
+        return d.PlantDate != "";
+      });
+
+
+      console.log(trees)
+      trees.forEach(d => {
+        d.Position = projection([d.Longitude, d.Latitude]);
+        d.owner = d.qCaretaker
+        if (d.qCaretaker == "Private" || d.qCaretaker == 'DPW' || d.qCaretaker == "Port" || d.qCaretaker == 'Rec/Park' || d.qCaretaker == 'SFUSD') {
+          d.owner = d.qCaretaker;
+        } else {
+          d.owner = "Other"
+        }
+        d.year = Number(d.PlantDate.slice(6, 10));
+      });
+
+      private = 'rgb(94, 138, 90)';
+      dpw = 'rgb(138, 110, 90)';
+      port = 'rgb(88, 142, 224)';
+      rec = 'rgb(105, 90, 138)';
+      sfusd = 'rgb(207, 140, 64)';
+      other = 'rgb(176, 40, 30)';
+
+      const ownerColorScale = d3.scaleOrdinal()
+        .domain(['Private', 'DPW', 'Port', 'Rec/Park', 'SFUSD', 'Other'])
+        .range([private, dpw, port, rec, sfusd, other])
+
+      yearExtent = d3.extent(trees, d => d.year)
+      // const yearColorScale = d3.scaleSequential(d3.interpolateYlGn).domain(yearExtent)
+      // .range(["rgb(113, 168, 122)", "rgb(47, 77, 52)"])
+
+
+      const yearColorScale = d3.scaleQuantize()
+        .domain(yearExtent)
+        .range(['#E5F9E0', '#A3F7B5', '#40C9A2', '#2F9C95', '#664147'])
+
+
+
+
+
+      map.selectAll("circle").data(trees)
+        .join("circle")
+        .attr("r", function (d) {
+          if (d.owner == 'Private' || d.owner == 'DPW') {
+            return 1.5;
+          } else { return 2; }
+        })
+        .attr("fill", d => ownerColorScale(d.owner))
+        .attr("opacity", function (d) {
+          if (d.owner == 'Private') {
+            return 0.5;
+          } else if (d.owner == 'DPW') {
+            return 0.8;
+          } else {
+            return 1;
+          }
+        })
+        .attr("cx", d => d.Position[0])
+        .attr("cy", d => d.Position[1]);
+
+      map.append('rect')
+        .attr('x', mapWidth2 - 110)
+        .attr('y', 0)
+        .style('fill', 'white')
+        .attr('height', 150)
+        .attr('width', 100)
+
+      map2.append('rect')
+        .attr('x', mapWidth2 - 110)
+        .attr('y', 0)
+        .style('fill', 'white')
+        .attr('height', 150)
+        .attr('width', 100)
+
+      map.append('text')
+        .text('San Francisco Trees: Owners and Ages')
+        .style('fill', 'black')
+        .style('font-size', 24)
+        .attr('x', 40)
+        .attr('y', margin2.top)
+
+
+      map2.selectAll("circle").data(trees)
+        .join("circle")
+        .attr('r', 1.5)
+        .attr('fill',
+          function (d) {
+            let age = 2020 - d.year;
+            if (age < 15) {
+              return '#C6F2BA';
+            } else if (age < 36) {
+              return '#0FBD35';
+            } else if (age > 35) {
+              return '#124032';
+            }
+          })
+        .attr('opacity', 1)
+        .attr("cx", d => d.Position[0])
+        .attr("cy", d => d.Position[1]);
+
+      //add color legend
+      legend = map.append('g').attr('id', 'legend')
+        .attr('transform', 'translate(' + (mapWidth2 - 80) + ',' + (mapHeight2 - 450) + ')');
+
+      categories = ['Private', 'DPW', 'Port', 'Rec/Park', 'SFUSD', 'Other']
+
+      categories.forEach((d, i) => {
+        legend.append('text')
+          .text(d)
+          .attr('class', 'legend_label')
+          .attr('transform', 'translate(' + (10) + ',' + (20 * i) + ')')
+          .style('font-size', '12')
+        colors = [private, dpw, port, rec, sfusd, other]
+        legend.append('circle')
+          .attr('cx', 0)
+          .attr('cy', (20 * i) - 4)
+          .attr('r', 5)
+          .style('fill', colors[i])
+      });
+
+      legend2 = map2.append('g').attr('id', 'legend')
+        .attr('transform', 'translate(' + (mapWidth2 - 80) + ',' + (mapHeight2 - 430) + ')');
+
+      categories2 = ['< 15 years old', '< 36 years old', '36 and older']
+
+      categories2.forEach((d, i) => {
+        legend2.append('text')
+          .text(d)
+          .attr('class', 'legend_label')
+          .attr('transform', 'translate(' + (10) + ',' + (20 * i) + ')')
+          .style('font-size', '12')
+        colors2 = ['#C6F2BA', '#0FBD35', "#124032"]
+        legend2.append('circle')
+          .attr('cx', 0)
+          .attr('cy', (20 * i) - 4)
+          .attr('r', 5)
+          .style('fill', colors2[i])
+      });
+    };
+    requestData();
+  </script>
+</body>
+
+</html>
